@@ -1,0 +1,503 @@
+openapi: 3.0.3
+info:
+  title: Tasya Portfolio Backend API
+  description: End-to-end API contract for Tasya's Portfolio CMS & Inquiries backend.
+  version: 1.0.0
+servers:
+  - url: https://be-portofoliotasya-production.up.railway.app
+    description: Railway production server
+  - url: http://localhost:3000
+    description: Local development server
+paths:
+  /api/auth/login:
+    post:
+      summary: Admin login
+      description: Logs in the admin user using email and password, returning a JWT token.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: admin@tasya.design
+                password:
+                  type: string
+                  format: password
+                  example: supersecurepassword123
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                    description: JWT access token
+                    example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        '400':
+          description: Validation error or invalid inputs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/projects:
+    get:
+      summary: Retrieve all projects
+      description: Get all published projects in a grid format (excludes soft-deleted projects).
+      responses:
+        '200':
+          description: A list of projects
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Project'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      summary: Add a new project
+      description: Create a new project in the portfolio (Admin access required).
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectInput'
+      responses:
+        '201':
+          description: Project created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized (Token missing or invalid)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/projects/{id}:
+    get:
+      summary: Retrieve a single project details
+      description: Get deep dive description, challenges, role, and tech stack for a specific project.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The project ID (UUID)
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Detailed project object
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        '400':
+          description: Invalid project ID format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Project not found or soft-deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    put:
+      summary: Update an existing project
+      description: Edit project details like title, images, descriptions, or links (Admin access required).
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The project ID (UUID)
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectInput'
+      responses:
+        '200':
+          description: Project updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Project not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      summary: Delete a project (Soft Delete)
+      description: Soft deletes a project by setting the `deletedAt` field (Admin access required).
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The project ID (UUID)
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Project soft-deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Project soft-deleted successfully"
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Project not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/media/upload:
+    post:
+      summary: Upload media file (Image/Thumbnail)
+      description: Upload an image file directly to the backend storage and retrieve the public access URL (Admin access required).
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: The file to upload.
+      responses:
+        '201':
+          description: Media uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - url
+                properties:
+                  url:
+                    type: string
+                    format: uri
+                    example: https://supabase.co/storage/v1/object/public/images/dashboard.jpg
+        '400':
+          description: Bad request (Invalid file format or missing field)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/inquiries:
+    post:
+      summary: Submit a project inquiry / contact form
+      description: Creates a contact request, saves to the database, and automatically forwards it to Tasya's email inbox.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InquiryInput'
+      responses:
+        '201':
+          description: Inquiry submitted successfully and forwarded to email
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Inquiry'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    get:
+      summary: View all inquiries
+      description: Retrieve list of all client inquiries (Admin access required).
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of submitted inquiries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Inquiry'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    ErrorResponse:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          example: "Error message details"
+        errors:
+          type: array
+          items:
+            type: object
+            required:
+              - path
+              - message
+            properties:
+              path:
+                type: string
+                example: "email"
+              message:
+                type: string
+                example: "Invalid email format"
+    Project:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d
+        title:
+          type: string
+          example: Fintech Dashboard Revamp
+        description:
+          type: string
+          example: A modern dashboard offering analytics, investments, and assets allocation views.
+        goal:
+          type: string
+          nullable: true
+          example: To design an intuitive, serene experience that demystifies wellness metrics.
+        challenges:
+          type: string
+          nullable: true
+          example: Balancing data-rich tracking features with a minimalist aesthetic was challenging.
+        role:
+          type: string
+          nullable: true
+          example: Lead UI/UX Designer
+        thumbnail:
+          type: string
+          example: https://supabase.co/storage/v1/object/public/images/dashboard.jpg
+        techStack:
+          type: array
+          items:
+            type: string
+          example: ["Figma", "React Native", "Tailwind"]
+        demoUrl:
+          type: string
+          format: uri
+          nullable: true
+          example: https://fintech-demo.tasya.design
+        repoUrl:
+          type: string
+          format: uri
+          nullable: true
+          example: https://github.com/tasya/fintech-dashboard
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: null
+    ProjectInput:
+      type: object
+      required:
+        - title
+        - description
+        - thumbnail
+        - techStack
+      properties:
+        title:
+          type: string
+          example: Fintech Dashboard Revamp
+        description:
+          type: string
+          example: A modern dashboard offering analytics, investments, and assets allocation views.
+        goal:
+          type: string
+          example: To design an intuitive, serene experience that demystifies wellness metrics.
+        challenges:
+          type: string
+          example: Balancing data-rich tracking features with a minimalist aesthetic was challenging.
+        role:
+          type: string
+          example: Lead UI/UX Designer
+        thumbnail:
+          type: string
+          example: https://supabase.co/storage/v1/object/public/images/dashboard.jpg
+        techStack:
+          type: array
+          items:
+            type: string
+          example: ["Figma", "React Native", "Tailwind"]
+        demoUrl:
+          type: string
+          format: uri
+          example: https://fintech-demo.tasya.design
+        repoUrl:
+          type: string
+          format: uri
+          example: https://github.com/tasya/fintech-dashboard
+    Inquiry:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d
+        name:
+          type: string
+          example: John Doe
+        email:
+          type: string
+          format: email
+          example: john.doe@company.com
+        whatsapp:
+          type: string
+          nullable: true
+          example: "+628123456789"
+        company:
+          type: string
+          nullable: true
+          example: Acme Corp
+        projectType:
+          type: string
+          example: Web Application Development
+        budgetRange:
+          type: string
+          example: "$5,000 - $10,000"
+        description:
+          type: string
+          example: We want to build a clean corporate website for our services.
+        createdAt:
+          type: string
+          format: date-time
+    InquiryInput:
+      type: object
+      required:
+        - name
+        - email
+        - projectType
+        - budgetRange
+        - description
+      properties:
+        name:
+          type: string
+          example: John Doe
+        email:
+          type: string
+          format: email
+          example: john.doe@company.com
+        whatsapp:
+          type: string
+          example: "+628123456789"
+        company:
+          type: string
+          example: Acme Corp
+        projectType:
+          type: string
+          example: Web Application Development
+        budgetRange:
+          type: string
+          example: "$5,000 - $10,000"
+        description:
+          type: string
+          example: We want to build a clean corporate website for our services.
